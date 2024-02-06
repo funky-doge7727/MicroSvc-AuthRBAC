@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const logger = require('../logger')
+const env = process.env
 
 module.exports = {
     registerUser: async (req, res) => {
@@ -12,8 +13,13 @@ module.exports = {
             if (row) {
                 return logger(400, `${req.body.username} already exists.`)
             }
-            await db.insert('INSERT INTO auth (username, password) VALUES (?, ?)', [username, hashedPassword])
-            return logger(201, `${req.body.username} is registered successfully.`)
+            const appType = req.body.apptype ?? "common"
+            const allowedAppTypes = await db.getvals('SELECT * FROM auth_apptype');
+            if (!allowedAppTypes.includes(appType)) {
+                return logger(400, `invalid apptype inserted: ${appType}.`);
+            }
+            await db.insert('INSERT INTO auth (username, password, apptype) VALUES (?, ?, ?)', [username, hashedPassword, appType])
+            return logger(201, `${req.body.username} is registered successfully. apptype: ${appType}.`)
         } catch (err) {
             return logger(500, `${err.message}`)
         }
@@ -23,48 +29,22 @@ module.exports = {
     authenticateUser: async (req, res) => {
         const { username, password } = req.body
 
-        let hashedPwFromDB = ''
-        let accessToken = ''
-        let msg = ''
-
         try {
-            const sql = "SELECT password FROM auth WHERE username = ?";    
-            function runQuery() {
-                return new Promise((resolve, reject) => {
-                    conn.query(sql, username, (err, result) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        if (result[0]) {
-                        hashedPwFromDB = result[0]?.password;
-                        } else {
-                        msg = `User ${username} does not exist.`;
-                        console.log(msg);
-                        }
-                        resolve();
-                    }
-                    });
-                });
-                }
-
-            await runQuery();
+            const hashedPwFromDB = await db.getval('SELECT password FROM auth WHERE username = (?)', [username]);
+            if (!hashedPwFromDB) {
+                return logger(400, `User ${username} does not exist.`)
+            }
 
             if (await bcrypt.compare(password, hashedPwFromDB)) {
-                accessToken = jwt.sign(username, process.env.ACCESS_TOKEN_SECRET);
+                const accessToken = jwt.sign(username, env.ACCESS_TOKEN_SECRET);
+                return logger(200, accessToken);
             } else {
-                msg = `User ${username} is unauthenticated.`
-                console.log(msg)
+                return logger(401, `User ${username} is unauthenticated.`);
             }
 
-            if (accessToken) {
-                return {code: 200, msg: accessToken }
-            } else {
-                return {code: 401, msg }
-            }
 
         } catch (err) {
-            console.log(err)
-            return {code: 500, msg: "Internal server error."}
+            return logger(500, `${err.message}`)
         }
 
     },
