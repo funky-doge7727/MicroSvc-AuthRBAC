@@ -16,15 +16,14 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
 
     const response = await authController.authenticateUser(req, res);
+    console.log(`user ${req.body.username} authenticated`);
     res.status(response.code).send(response);
 
 });
 
 router.get('/check-users', async (req, res) => {
-    res.send(JSON.stringify(users))
+    const response = await authController.seeAllUsers(req, res);
+    res.status(response.code).send(response);
 });
-
-module.exports = router
-
 
 module.exports = router;

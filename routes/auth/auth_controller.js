@@ -10,7 +10,11 @@ module.exports = {
     authenticateUser: async (req, res) => {
         const response = await authSvc.authenticateUser(req, res);
         return response
-    }
+    },
+    seeAllUsers: async (req, res) => {
+        const response = await authSvc.seeAllUsers(req, res);
+        return response
+    },
 
 }
 

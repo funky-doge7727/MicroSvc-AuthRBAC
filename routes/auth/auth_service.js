@@ -1,40 +1,32 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const conn = require('../../utils/db');
+const localStrat = require('../../utils/strats/local_strat');
+const stratMap = {local: localStrat}
+
 const env = process.env
+
+const invalidStratSpecified = {code: 400, msg: "invalid strategy specified."}
+
+const verifyStrat = (inputStrat) => {
+    const authStrat = inputStrat ?? env.AUTH_STRATEGY;
+    const strat = stratMap[authStrat]
+    if (!strat) throw new Error(`Invalid strat: ${authStrat}`)
+    return strat
+}
 
 module.exports = {
     registerUser: async (req, res) => {
 
         try {
-            switch (env.AUTH_STRATEGY) {
-                case 'local':
-                    const { username, password } = req.body
-                    const hashedPassword = await bcrypt.hash(password, 10);
-                    const sql = "INSERT INTO auth (username, password) VALUES ?";
-                    const values = [
-                        [username, hashedPassword]
-                    ]; 
-    
-                    conn.query(sql, [values], (err, result) => {
-                        if (err) throw err;
-                        console.log(result)
-                        console.log(`User registered in ${env.AUTH_STRATEGY}: ${username}`);
-                    });
-                    break;
-                default:
-                    console.log('pass')
-    
-            }
-
-            return {code: 201, msg: `${req.body.username} is registered successfully.`}
+            const strat = verifyStrat(req.body.AUTH_STRATEGY_FLAG);
+            const resp = strat.registerUser(req, res);
+            return resp 
         } catch (err) {
-            console.log(err)
-            return {code: 500, msg: `An error occured.${req.body.username} is not registered.`}
+            console.log(err.message)
+            return {code: 500, msg: err.message}
         }
-
-
-        
+   
     },
 
     authenticateUser: async (req, res) => {
@@ -94,7 +86,17 @@ module.exports = {
             return {code: 500, msg: "Internal server error."}
         }
 
-    }
+    },
 
+    seeAllUsers: async (req, res) => {
+        try {
+            const strat = verifyStrat(req.body.AUTH_STRATEGY_FLAG);
+            const resp = strat.seeAllUsers();
+            return resp 
+        } catch (err) {
+            console.log(err.message)
+            return {code: 500, msg: err.message}
+        }
+    }
 }
 
